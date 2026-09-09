@@ -1,0 +1,208 @@
+// ---------------- PINOS ----------------
+// Sensor ultrassônico do PORTÃO
+const int trigPortao = 2;
+const int echoPortao = 3;
+
+// Sensor ultrassônico da PORTA
+const int trigPorta = 4;
+const int echoPorta = 5;
+
+// Sensor de luminosidade
+const int LDR = A0;
+
+// Controle do transistor que aciona o relé
+const int rele = 8;
+
+
+// ---------------- CONFIGURAÇÕES ----------------
+// Distância para considerar que uma pessoa foi detectada
+const int distanciaDeteccao = 30;
+
+// Ajuste esse valor observando o LDR no Tinkercad
+const int limiteEscuro = 500;
+
+
+// ---------------- ESTADOS DO SISTEMA ----------------
+enum Estado {
+  FORA,
+  CHEGANDO,
+  DENTRO,
+  SAINDO
+};
+
+Estado estadoAtual = FORA;
+
+// MEDIR DISTÂNCIA
+long medirDistancia(int trigPin, int echoPin) {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  long tempo = pulseIn(echoPin, HIGH, 30000);
+  // Se não houver retorno do sensor
+  if (tempo == 0) {
+    return 999;
+  }
+
+  long distancia = tempo * 0.0343 / 2;
+
+  return distancia;
+}
+
+
+// VERIFICAR LUMINOSIDADE
+bool estaEscuro() {
+
+  int valorLDR = analogRead(LDR);
+
+  Serial.print("LDR: ");
+  Serial.println(valorLDR);
+
+  if (valorLDR < limiteEscuro) {
+    return true;
+  }
+
+  return false;
+}
+
+// LIGAR LUZES
+void ligarLuzes() {
+
+  if (estaEscuro()) {
+
+    digitalWrite(rele, HIGH);
+
+    Serial.println("LUZES: LIGADAS");
+  }
+
+  else {
+
+    digitalWrite(rele, LOW);
+
+    Serial.println("Está claro - luzes permanecem desligadas");
+  }
+}
+
+// DESLIGAR LUZES
+void desligarLuzes() {
+
+  digitalWrite(rele, LOW);
+
+  Serial.println("LUZES: DESLIGADAS");
+}
+
+// SETUP
+void setup() {
+  // Sensor do portão
+  pinMode(trigPortao, OUTPUT);
+  pinMode(echoPortao, INPUT);
+  // Sensor da porta
+  pinMode(trigPorta, OUTPUT);
+  pinMode(echoPorta, INPUT);
+  // LDR
+  pinMode(LDR, INPUT);
+  // Relé
+  pinMode(rele, OUTPUT);
+  // Começa com as luzes desligadas
+  digitalWrite(rele, LOW);
+
+  Serial.begin(9600);
+  Serial.println("==============================");
+  Serial.println("SISTEMA INICIADO");
+  Serial.println("==============================");
+}
+
+// LOOP PRINCIPAL
+void loop() {
+ 
+  long distanciaPortao =
+    medirDistancia(trigPortao, echoPortao);
+  long distanciaPorta =
+    medirDistancia(trigPorta, echoPorta);
+
+
+  Serial.print("Portao: ");
+  Serial.print(distanciaPortao);
+  Serial.print(" cm | ");
+
+  Serial.print("Porta: ");
+  Serial.print(distanciaPorta);
+  Serial.print(" cm | ");
+
+  // ESTADO: FORA
+  if (estadoAtual == FORA) {
+    Serial.println("Estado: FORA");
+    // Primeiro sensor detectado = PORTÃO
+    if (distanciaPortao <= distanciaDeteccao) {
+      estadoAtual = CHEGANDO;
+
+      Serial.println("------------------------------");
+      Serial.println("PORTAO DETECTOU");
+      Serial.println("Pessoa chegando em casa");
+      Serial.println("------------------------------");
+
+      ligarLuzes();
+
+      // Espera a pessoa se afastar do sensor
+      delay(1000);
+    }
+  }
+
+  // ESTADO: CHEGANDO
+  else if (estadoAtual == CHEGANDO) {
+    Serial.println("Estado: CHEGANDO");
+    // Segundo sensor = PORTA
+    if (distanciaPorta <= distanciaDeteccao) {
+      estadoAtual = DENTRO;
+
+      Serial.println("------------------------------");
+      Serial.println("PORTA DETECTOU");
+      Serial.println("Pessoa entrou em casa");
+      Serial.println("------------------------------");
+
+      desligarLuzes();
+
+      delay(1000);
+    }
+  }
+
+  // ESTADO: DENTRO
+  else if (estadoAtual == DENTRO) {
+    Serial.println("Estado: DENTRO");
+    // Porta detectada primeiro = pessoa começando a sair
+    if (distanciaPorta <= distanciaDeteccao) {
+      estadoAtual = SAINDO;
+
+      Serial.println("------------------------------");
+      Serial.println("PORTA DETECTOU");
+      Serial.println("Pessoa saindo de casa");
+      Serial.println("------------------------------");
+
+      ligarLuzes();
+
+      delay(1000);
+    }
+  }
+
+  // ESTADO: SAINDO
+  else if (estadoAtual == SAINDO) {
+    Serial.println("Estado: SAINDO");
+    // Portão detectado depois da porta
+    if (distanciaPortao <= distanciaDeteccao) {
+      estadoAtual = FORA;
+
+      Serial.println("------------------------------");
+      Serial.println("PORTAO DETECTOU");
+      Serial.println("Pessoa saiu de casa");
+      Serial.println("------------------------------");
+
+      desligarLuzes();
+
+      delay(1000);
+    }
+  }
+
+  delay(200);
+}
+
